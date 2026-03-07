@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
@@ -30,4 +32,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
                                      Pageable pageable);
 
     boolean existsByPhone(String phone);
+
+    Optional<Customer> findByPhone(String customerPhone);
 }

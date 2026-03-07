@@ -7,10 +7,7 @@ import org.example.event_platform.Entity.EventType;
 import java.math.BigDecimal;
 import java.time.*;
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class EventRequest {
     @NotBlank(message = "Tên sự kiện không được để trống")
     private String name;
@@ -26,18 +23,18 @@ public class EventRequest {
     @NotBlank(message = "Địa điểm không được để trống")
     private String location;
 
-    private String province;
-
-    @NotBlank(message = "Tên khách hàng không được để trống")
+    // PHẦN CUSTOMER: Ưu tiên ID, không có mới dùng String
+    private Long customerId;
     private String customerName;
     private String customerPhone;
+    private Long tenantId;
 
-    @NotNull(message = "Phải chọn đội lân thực hiện")
-    private Long tenantId; // Admin sàn chọn đội lân nào sẽ diễn
-
-    @DecimalMin(value = "0.0", message = "Số tiền không hợp lệ")
+    @DecimalMin(value = "0.0")
     private BigDecimal totalAmount;
-    private BigDecimal platformFee;
 
     private String description;
+
+    // Thêm thông tin tập trung ngay từ lúc tạo nếu có
+    private LocalTime concentrateTime;
+    private String concentrateLocation;
 }

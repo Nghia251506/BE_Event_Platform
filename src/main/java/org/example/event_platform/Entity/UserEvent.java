@@ -1,50 +1,38 @@
 package org.example.event_platform.Entity;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 import java.time.*;
 
 @Entity
 @Table(name = "user_event")
-@Data
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class UserEvent {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY) // Chuyển sang LAZY để cứu Server
     @JoinColumn(name = "event_id")
     private Event event;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
 
-    // Vị trí diễn: DAU_LAN, DUOI_LAN, ONG_DIA, TRONG, HA_QUAN...
-    @Column(nullable = false)
-    private String position;
+    private String position; // DAU_LAN, TRONG, DIA...
 
-    // Trạng thái xác nhận show: PENDING, ACCEPTED, REJECTED
-    @Column(nullable = false)
-    private AssignStatus status = AssignStatus.PENDING;
+    @Enumerated(EnumType.STRING)
+    private AssignStatus status;
+    // Vòng đời: PENDING -> ACCEPTED/REJECTED -> CHECKED_IN -> CHECKED_OUT (FINISHED)
 
-    // Lý do nếu thành viên từ chối (REJECTED)
-    private String note;
-
-    // Thời gian thành viên bấm xác nhận/từ chối
+    private String note; // Lý do từ chối
     private LocalDateTime respondedAt;
 
-    // --- Phần Điểm Danh ---
-
-    // Thời gian Member bấm check-in tại điểm diễn
+    // PHỤC VỤ CHECK-IN/OUT VÀ AUTO-CLOSE SHOW
     private LocalTime checkinAt;
-
-    // Thời gian Member bấm check-out sau khi diễn xong
     private LocalTime checkoutAt;
+    private String checkinLocation; // Tọa độ GPS thực tế
 
-    // Tọa độ lúc check-in (nếu ông muốn làm gắt vụ đứng đúng chỗ mới được điểm danh)
-    private String checkinLocation;
-
-    private LocalTime concentrateAt;
-    private String concentrateLocationActual;
+    // Thông tin tập trung thực tế
+    private LocalTime actualConcentrateAt;
 }

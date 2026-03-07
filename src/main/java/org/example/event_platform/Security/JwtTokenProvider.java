@@ -49,6 +49,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(user.getUsername())
                 .claim("userId", user.getId())
+                .claim("fullName", user.getFullName())
                 // Nếu không có tenantId thì mặc định là PLATFORM, ngược lại là TENANT
                 .claim("userType", (shopId == null) ? "PLATFORM" : "TENANT")
                 .claim("shopId", shopId)
@@ -91,6 +92,19 @@ public class JwtTokenProvider {
                     .parseSignedClaims(token)
                     .getPayload()
                     .getSubject();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public String getFullnameFromToken(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .get("fullName", String.class);
         } catch (Exception e) {
             return null;
         }

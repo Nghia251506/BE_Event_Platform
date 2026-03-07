@@ -21,6 +21,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByUsername(String username);
 
+
     long countByIsActiveTrue();
 
     List<User> findByIsActiveTrue();
@@ -32,6 +33,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByTenantIdAndEmail(Long tenantId, String email);
     // Lấy danh sách nhân viên của một Tenant (Quan trọng cho Multi-tenant)
     Page<User> findByTenantId(Long tenantId, Pageable pageable);
+    List<User> findByTenantId(Long tenantId);
 
     // Tìm nhân viên cụ thể trong 1 Tenant (Đảm bảo Admin tenant A không sửa được user tenant B)
     Optional<User> findByIdAndTenantId(Long id, Long tenantId);
@@ -53,4 +55,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT COUNT(u) FROM User u WHERE u.tenant.id = :tenantId")
     Long countTotalUsersByTenant(Long tenantId);
+
+    List<User> findByTenantIdAndRolesName(Long tenantId, String roleAdmin);
 }

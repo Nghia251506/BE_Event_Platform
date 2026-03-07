@@ -1,31 +1,77 @@
 package org.example.event_platform.Controller;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.event_platform.Dto.Event.*;
+import org.example.event_platform.Entity.AssignStatus;
+import org.example.event_platform.Entity.EventStatus;
+import org.example.event_platform.Entity.EventType;
 import org.example.event_platform.Entity.User; // Class User của ông
 import org.example.event_platform.Service.Event.EventService;
 import org.example.event_platform.util.TenantContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/tenant/events")
 @RequiredArgsConstructor
+@Slf4j
 public class TenantEventController {
 
     private final EventService eventService;
 
+    @GetMapping("/all")
+    @PreAuthorize("hasAuthority('EVENT_VIEW')")
+    public ResponseEntity<Page<EventResponse>> getAllMyEvents(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) EventStatus status,
+            @RequestParam(required = false) EventType type,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @PageableDefault(size = 20, sort = "eventDate") Pageable pageable) {
+
+        // ÉP CỨNG: Chỉ lấy data của đội mình từ Context
+        Long tenantId = TenantContext.getCurrentShopId();
+        if (tenantId == null) return ResponseEntity.status(403).build();
+
+        return ResponseEntity.ok(eventService.getAllEvents(
+                search, status, type, tenantId, startDate, endDate, pageable
+        ));
+    }
+
     /**
-     * Lấy lịch diễn tháng hiện tại của đội
-     * @paramcurrentUser: Lấy từ Spring Security Context để lấy tenantId
+     * 2. Xem chi tiết một sự kiện bất kỳ (Có check bảo mật)
+     */
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('EVENT_DETAIL_VIEW')")
+    public ResponseEntity<EventResponse> getMyEventDetail(@PathVariable Long id) {
+        EventResponse event = eventService.getEventDetail(id);
+        Long tenantId = TenantContext.getCurrentShopId();
+
+        // Bảo mật: Show này phải thuộc về đội của Admin đang đăng nhập
+        if (event.getTenantId() == null || !event.getTenantId().equals(tenantId)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        return ResponseEntity.ok(event);
+    }
+
+    // ==========================================
+    // SECTION 1: QUẢN LÝ SHOW (DÀNH CHO ADMIN ĐỘI LÂN)
+    // ==========================================
+
+    /**
+     * Lấy lịch diễn tháng của đội (Dùng TenantContext)
      */
     @GetMapping
     @PreAuthorize("hasAuthority('EVENT_VIEW')")
@@ -34,23 +80,14 @@ public class TenantEventController {
             @RequestParam int year,
             @PageableDefault(size = 10) Pageable pageable) {
 
-        // 1. Lấy tenantId từ cái TenantContext mà ông đã set ở Filter
         Long tenantId = TenantContext.getCurrentShopId();
+        if (tenantId == null) return ResponseEntity.status(403).build();
 
-//        log.info("Fetching schedule for Tenant ID from Context: {}", tenantId);
-
-        // 2. Kiểm tra nếu không có tenantId (tránh NPE)
-        if (tenantId == null) {
-            return ResponseEntity.status(403).build();
-        }
-
-        return ResponseEntity.ok(eventService.getTenantEvents(
-                tenantId, month, year, pageable
-        ));
+        return ResponseEntity.ok(eventService.getTenantEvents(tenantId, month, year, pageable));
     }
 
     /**
-     * Lấy 3 cái card thống kê cuối trang (Tổng show, Doanh thu, Tỷ lệ)
+     * Card thống kê tháng (Tổng show, Doanh thu, Tỷ lệ hoàn thành)
      */
     @GetMapping("/summary")
     @PreAuthorize("hasAuthority('EVENT_SUMMARY_VIEW')")
@@ -59,134 +96,115 @@ public class TenantEventController {
             @RequestParam int year) {
 
         Long tenantId = TenantContext.getCurrentShopId();
-
-        return ResponseEntity.ok(eventService.getTenantMonthlySummary(
-                tenantId, month, year
-        ));
+        return ResponseEntity.ok(eventService.getTenantMonthlySummary(tenantId, month, year));
     }
 
-    @PostMapping("/accept/{eventId}")
+    /**
+     * Chấp nhận show từ sàn đẩy về
+     */
+    @PostMapping("/{eventId}/accept")
     @PreAuthorize("hasAuthority('EVENT_MODERATE')")
     public ResponseEntity<String> acceptEvent(@PathVariable Long eventId) {
         Long tenantId = TenantContext.getCurrentShopId();
-        eventService.acceptEvent(eventId,tenantId);
-        return ResponseEntity.ok("success");
+        eventService.acceptEvent(eventId, tenantId);
+        return ResponseEntity.ok("Đã nhận show thành công! Hãy gán anh em đi diễn.");
     }
 
-    @PostMapping("/reject/{eventId}")
+    /**
+     * Từ chối show từ sàn (Trả lại cho Admin sàn)
+     */
+    @PostMapping("/{eventId}/reject")
     @PreAuthorize("hasAuthority('EVENT_MODERATE')")
     public ResponseEntity<String> rejectEvent(@PathVariable Long eventId) {
         Long tenantId = TenantContext.getCurrentShopId();
-        eventService.rejectEvent(eventId,tenantId);
-        return ResponseEntity.ok("success");
+        eventService.rejectEvent(eventId, tenantId);
+        return ResponseEntity.ok("Đã từ chối show.");
     }
 
     /**
-     * Xem chi tiết sự kiện của đội mình
-     */
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('EVENT_DETAIL_VIEW')")
-    public ResponseEntity<EventResponse> getMyEventDetail(
-            @PathVariable Long id) {
-
-        EventResponse event = eventService.getEventDetail(id);
-        Long tenantId = TenantContext.getCurrentShopId();
-
-        // Kiểm tra xem sự kiện này có đúng là của đội mình không
-        if (!event.getTenantId().equals(tenantId)) {
-            return ResponseEntity.status(403).build(); // Không được xem show của đội khác
-        }
-
-        return ResponseEntity.ok(event);
-    }
-
-    // ==========================================
-    // SECTION 1: DÀNH CHO ADMIN ĐOÀN LÂN
-    // ==========================================
-
-    /**
-     * Admin gán danh sách thành viên vào show diễn
+     * Admin gán danh sách thành viên vào show (Bắn FCM tự động trong Service)
      */
     @PostMapping("/{id}/assign")
+    @PreAuthorize("hasAuthority('EVENT_ASSIGN')")
     public ResponseEntity<String> assignMembers(
             @PathVariable Long id,
             @RequestBody List<AssignMemberRequest> requests) {
         eventService.assignMembersToEvent(id, requests);
-        return ResponseEntity.ok("Đã gán thành viên vào show thành công!");
+        return ResponseEntity.ok("Đã gán thành viên và thông báo cho anh em!");
     }
 
     /**
-     * Lấy chi tiết show kèm theo mảng thành viên (Gộp mảng)
+     * Cập nhật thông tin tập trung (Giờ giấc, địa điểm tập trung)
+     */
+    @PatchMapping("/{id}/concentrate-info")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<EventResponse> updateConcentrate(
+            @PathVariable Long id,
+            @RequestBody UpdateConcentrate concentrateDto) {
+        return ResponseEntity.ok(eventService.updateConcentrateInfo(id, concentrateDto));
+    }
+
+    /**
+     * Chi tiết show kèm danh sách anh em tham gia
      */
     @GetMapping("/{id}/with-members")
+    @PreAuthorize("hasAuthority('EVENT_DETAIL_VIEW')")
     public ResponseEntity<EventWithMembersResponse> getEventWithMembers(@PathVariable Long id) {
         return ResponseEntity.ok(eventService.getEventDetailWithMembers(id));
     }
-
 
     // ==========================================
     // SECTION 2: DÀNH CHO MEMBER (ANH EM ĐI DIỄN)
     // ==========================================
 
     /**
-     * Member lấy danh sách các show mình được gán (Tab Lịch Diễn)
+     * Lấy danh sách show ĐƯỢC GÁN của chính mình
+     * Note: Dùng userId từ Token để bảo mật
      */
-    @GetMapping("/my-assignments/{userId}")
-    public ResponseEntity<List<UserEventDTO>> getMyAssignments(@PathVariable Long userId) {
-        return ResponseEntity.ok(eventService.getMyAssignedEvents(userId));
+    @GetMapping("/my-assignments")
+    public ResponseEntity<List<UserEventDTO>> getMyAssignments(@AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(eventService.getMyAssignedEvents(currentUser.getId()));
     }
 
     /**
-     * Member bấm Xác nhận (ACCEPTED) hoặc Từ chối (REJECTED)
+     * Member Chấp nhận hoặc Từ chối show
      */
     @PatchMapping("/assignments/{userEventId}/respond")
     public ResponseEntity<String> respondToAssignment(
             @PathVariable Long userEventId,
-            @RequestParam String status,
+            @RequestParam AssignStatus status, // Dùng thẳng Enum cho chuẩn
             @RequestParam(required = false) String note) {
         eventService.respondToAssignment(userEventId, status, note);
-        return ResponseEntity.ok("Phản hồi trạng thái thành công!");
+        return ResponseEntity.ok("Đã phản hồi trạng thái show.");
     }
 
     /**
-     * Member bấm Check-in tại điểm diễn
+     * Check-in tập trung
+     */
+    @PostMapping("/assignments/{userEventId}/concentrate-check-in")
+    public ResponseEntity<String> concentrateCheckIn(
+            @PathVariable Long userEventId,
+            @RequestParam String location) {
+        return ResponseEntity.ok(eventService.concentrateCheckIn(userEventId, location));
+    }
+
+    /**
+     * Check-in tại điểm diễn (Tự động nhảy status Event sang IN_PROGRESS)
      */
     @PostMapping("/assignments/{userEventId}/check-in")
     public ResponseEntity<String> checkIn(
             @PathVariable Long userEventId,
             @RequestParam String location) {
         eventService.checkIn(userEventId, location);
-        return ResponseEntity.ok("Check-in thành công!");
+        return ResponseEntity.ok("Check-in thành công! Chúc ông giáo diễn tốt.");
     }
 
     /**
-     * Member bấm Check-out khi diễn xong
+     * Check-out khi xong show (Tự động đóng show nếu là người cuối cùng)
      */
     @PostMapping("/assignments/{userEventId}/check-out")
     public ResponseEntity<String> checkOut(@PathVariable Long userEventId) {
-        eventService.checkOut(userEventId);
-        return ResponseEntity.ok("Check-out thành công! Hoàn thành suất diễn.");
-    }
-
-    @PatchMapping("/{id}/concentrate-info")
-    public ResponseEntity<EventResponse> updateConcentrate(
-            @PathVariable Long id,
-            @RequestBody UpdateConcentrate concentrateDto) {
-
-        EventResponse updated = eventService.updateConcentrateInfo(id, concentrateDto);
-        return ResponseEntity.ok(updated);
-    }
-
-    @PostMapping("/{id}/concentrate-check-in")
-    public ResponseEntity<String> concentrateCheckIn(
-            @PathVariable Long id,
-            @RequestParam String location) {
-        String msg = eventService.concentrateCheckIn(id, location);
+        String msg = eventService.checkOut(userEventId);
         return ResponseEntity.ok(msg);
     }
-
-//    @GetMapping("/my-stats")
-//    public ResponseEntity<Map<String, Object>> getMyStats(@PathVariable Long userId) {
-//        return ResponseEntity.ok(userService.getMemberStats(userId));
-//    }
 }
