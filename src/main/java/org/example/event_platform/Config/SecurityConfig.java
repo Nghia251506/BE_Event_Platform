@@ -80,7 +80,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("http://localhost:5173", "http://localhost:3000","http://192.168.*:*","http://172.168.*:*"));
+        config.setAllowedOriginPatterns(List.of("http://localhost:5173", "http://localhost:3000","http://192.168.*:*","http://172.168.*:*", "https://fe-admin-event-platform.vercel.app","https://be-event-platform.fly.dev"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
