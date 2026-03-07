@@ -1,0 +1,10 @@
+package org.example.event_platform.Repository;
+
+import org.example.event_platform.Entity.Role;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Optional;
+
+public interface RoleRepository extends JpaRepository<Role, Long> {
+    Optional<Role> findByName(String roleName);
+//    Role findByName(String roleName);
+}
