@@ -9,4 +9,5 @@ public class CustomerResponse {
     private String phone;
     private Long assignedToId;      // ID của thành viên quản lý
     private String assignedToName;  // Tên của thành viên quản lý (để hiển thị luôn trên UI)
+    private Long tenantId;
 }

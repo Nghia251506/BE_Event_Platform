@@ -2,11 +2,10 @@ package org.example.event_platform.Controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.event_platform.Dto.Dashboard.DashboardStatDTO;
 import org.example.event_platform.Dto.Event.*;
-import org.example.event_platform.Entity.AssignStatus;
-import org.example.event_platform.Entity.EventStatus;
-import org.example.event_platform.Entity.EventType;
-import org.example.event_platform.Entity.User; // Class User của ông
+import org.example.event_platform.Entity.*;
+import org.example.event_platform.Repository.UserEventRepository;
 import org.example.event_platform.Service.Event.EventService;
 import org.example.event_platform.util.TenantContext;
 import org.springframework.data.domain.Page;
@@ -18,7 +17,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +30,7 @@ import java.util.Map;
 public class TenantEventController {
 
     private final EventService eventService;
+    private final UserEventRepository userEventRepository;
 
     @GetMapping("/all")
     @PreAuthorize("hasAuthority('EVENT_VIEW')")
@@ -183,9 +185,8 @@ public class TenantEventController {
      */
     @PostMapping("/assignments/{userEventId}/concentrate-check-in")
     public ResponseEntity<String> concentrateCheckIn(
-            @PathVariable Long userEventId,
-            @RequestParam String location) {
-        return ResponseEntity.ok(eventService.concentrateCheckIn(userEventId, location));
+            @PathVariable Long userEventId) {
+        return ResponseEntity.ok(eventService.concentrateCheckIn(userEventId));
     }
 
     /**
@@ -206,5 +207,24 @@ public class TenantEventController {
     public ResponseEntity<String> checkOut(@PathVariable Long userEventId) {
         String msg = eventService.checkOut(userEventId);
         return ResponseEntity.ok(msg);
+    }
+
+    @PatchMapping("/assignments/{id}/salary")
+    public ResponseEntity<String> updateSalary(
+            @PathVariable Long id,
+            @RequestParam BigDecimal amount) {
+        UserEvent ue = userEventRepository.findById(id).orElseThrow();
+        ue.setSalary(amount);
+        userEventRepository.save(ue);
+        return ResponseEntity.ok("Đã cập nhật lương cho show!");
+    }
+
+    @GetMapping("/dashboardmember/{userId}")
+    public ResponseEntity<DashboardStatDTO> getDashboardStats(@PathVariable Long userId) {
+        Long tenantId = TenantContext.getCurrentShopId();
+        // Gọi Service xử lý logic đếm show và cộng tiền
+        DashboardStatDTO stats = eventService.getMemberDashboardStats(tenantId, userId);
+
+        return ResponseEntity.ok(stats);
     }
 }

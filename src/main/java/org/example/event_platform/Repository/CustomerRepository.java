@@ -13,25 +13,31 @@ import java.util.Optional;
 @Repository
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
-    // 1. Tìm kiếm theo Keyword (Tên hoặc SĐT) + Phân trang
-    // Nếu keyword null hoặc trống, nó sẽ lấy tất cả nhờ logic ( :keyword IS NULL OR ... )
-    @Query("SELECT c FROM Customer c WHERE " +
+    // 1. Tìm kiếm theo Keyword + Tenant
+    @Query("SELECT c FROM Customer c WHERE c.tenant.id = :tenantId AND " +
             "(:keyword IS NULL OR :keyword = '' OR " +
             "LOWER(c.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "c.phone LIKE CONCAT('%', :keyword, '%'))")
-    Page<Customer> searchCustomers(@Param("keyword") String keyword, Pageable pageable);
+    Page<Customer> searchCustomers(@Param("tenantId") Long tenantId,
+                                   @Param("keyword") String keyword,
+                                   Pageable pageable);
 
-    // 2. Nếu ông muốn Admin xem hết, còn Member chỉ xem khách của mình:
-    @Query("SELECT c FROM Customer c WHERE " +
+    // 2. Tìm khách của chính mình + Tenant
+    @Query("SELECT c FROM Customer c WHERE c.tenant.id = :tenantId AND " +
             "c.assignedTo.id = :userId AND " +
             "(:keyword IS NULL OR :keyword = '' OR " +
             "LOWER(c.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "c.phone LIKE CONCAT('%', :keyword, '%'))")
-    Page<Customer> searchMyCustomers(@Param("userId") Long userId,
+    Page<Customer> searchMyCustomers(@Param("tenantId") Long tenantId,
+                                     @Param("userId") Long userId,
                                      @Param("keyword") String keyword,
                                      Pageable pageable);
 
-    boolean existsByPhone(String phone);
+    // 3. Check trùng phone phải check trong nội bộ Tenant thôi nhé
+    boolean existsByPhoneAndTenantId(String phone, Long tenantId);
+
+    // 4. Tìm chi tiết theo ID và Tenant (để tránh việc user Tenant A đoán ID của Tenant B)
+    Optional<Customer> findByIdAndTenantId(Long id, Long tenantId);
 
     Optional<Customer> findByPhone(String customerPhone);
 }

@@ -26,6 +26,7 @@ public abstract class UserEventMapper {
     @Mapping(target = "note", source = "event.description")
     // Status của cá nhân: PENDING, ACCEPTED...
     @Mapping(target = "status", expression = "java(formatAssignStatus(entity.getStatus()))")
+    @Mapping(target = "actualConcentrateAt", source  = "actualConcentrateAt")
     public abstract UserEventDTO toDto(UserEvent entity);
 
     @AfterMapping
@@ -52,6 +53,7 @@ public abstract class UserEventMapper {
             case COMPLETED -> "Đã diễn xong"; // Chính là FINISHED như ae mình bàn
             case CHECKED_IN -> "Đã checkin diễn";
             case CHECKED_OUT -> "Đã checkout diễn";
+            case CHECKIN_CONCENTRATE -> "Đã checkin tập trung";
         };
     }
 

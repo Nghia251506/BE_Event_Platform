@@ -1,6 +1,8 @@
 package org.example.event_platform.Entity;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.math.BigDecimal;
 import java.time.*;
 
 @Entity
@@ -35,4 +37,6 @@ public class UserEvent {
 
     // Thông tin tập trung thực tế
     private LocalTime actualConcentrateAt;
+    @Column(name = "salary", precision = 15, scale = 2)
+    private BigDecimal salary = BigDecimal.ZERO;
 }

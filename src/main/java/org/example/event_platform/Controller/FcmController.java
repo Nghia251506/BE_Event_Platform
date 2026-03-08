@@ -26,14 +26,4 @@ public class FcmController {
         fcmTokenService.saveToken(userId, token);
         return ResponseEntity.ok("Đăng ký Token thành công!");
     }
-
-    // @PostMapping("/test-push")
-    // public ResponseEntity<?> testPush(@RequestParam String token) {
-    //     fcmService.sendPushNotification(
-    //             token,
-    //             "Test Swagger",
-    //             "Nếu bạn thấy cái này thì cấu hình BE đã CHUẨN!",
-    //             Map.of("type", "TEST"));
-    //     return ResponseEntity.ok("Đã gửi lệnh push!");
-    // }
 }

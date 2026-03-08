@@ -3,6 +3,7 @@ package org.example.event_platform.Service.Event;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.event_platform.Dto.Dashboard.DashboardStatDTO;
 import org.example.event_platform.Dto.Event.*;
 import org.example.event_platform.Entity.*;
 import org.example.event_platform.Mapper.EventMapper;
@@ -20,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -170,8 +172,8 @@ public class EventService {
         UserEvent ue = userEventRepository.findById(userEventId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy lịch diễn"));
 
-        if (ue.getStatus() != AssignStatus.ACCEPTED) {
-            throw new IllegalStateException("Bạn phải xác nhận tham gia trước khi Check-in.");
+        if (ue.getStatus() != AssignStatus.ACCEPTED && ue.getStatus() != AssignStatus.CHECKIN_CONCENTRATE) {
+            throw new IllegalStateException("Bạn phải xác nhận tham gia hoặc hoàn thành báo danh tập trung trước khi Check-in.");
         }
 
         ue.setCheckinAt(LocalTime.now());
@@ -337,15 +339,57 @@ public class EventService {
     }
 
     @Transactional
-    public String concentrateCheckIn(Long userEventId, String location) {
+    public String concentrateCheckIn(Long userEventId) {
+        // 1. Tìm bản ghi gán quân
         UserEvent ue = userEventRepository.findById(userEventId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy lịch diễn"));
 
-        // Lưu thông tin tập trung thực tế
-        ue.setCheckinLocation(location); // Có thể dùng field riêng nếu muốn phân biệt với check-in diễn
-        // ue.setActualConcentrateTime(LocalTime.now());
+        // 2. Lấy thời gian thực tế
+        LocalTime now = LocalTime.now();
+        ue.setActualConcentrateAt(now);
+        ue.setStatus(AssignStatus.CHECKIN_CONCENTRATE);
+
+        // 3. Lấy giờ quy định
+        LocalTime scheduledTime = ue.getEvent().getConcentrateTime();
+
+        String message;
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+
+        if (scheduledTime == null) {
+            message = "Xác nhận có mặt thành công lúc " + now.format(formatter);
+        } else {
+            // 4. Logic so sánh giờ
+            if (now.isBefore(scheduledTime) || now.equals(scheduledTime)) {
+                message = "Xác nhận: Có mặt ĐÚNG GIỜ (" + now.format(formatter) + ").";
+            } else {
+                long minutesLate = java.time.Duration.between(scheduledTime, now).toMinutes();
+                message = "Xác nhận: Có mặt MUỘN " + minutesLate + " phút (Giờ quy định: " + scheduledTime.format(formatter) + ").";
+            }
+        }
 
         userEventRepository.save(ue);
-        return "Xác nhận có mặt tập trung thành công!";
+        return message;
+    }
+    @Transactional
+    public DashboardStatDTO getMemberDashboardStats(Long tenantId, Long userId) {
+        long finished = userEventRepository.countFinishedShows(tenantId, userId);
+        long pending = userEventRepository.countPendingShows(tenantId, userId);
+        Double totalEarnings = userEventRepository.sumTotalEarnings(tenantId, userId);
+
+        // Xử lý nếu chưa có đồng nào (tránh Null)
+        double earnings = (totalEarnings != null) ? totalEarnings : 0.0;
+
+        return new DashboardStatDTO(
+                finished,
+                pending,
+                earnings,
+                calculateRank(finished)
+        );
+    }
+
+    private String calculateRank(long finished) {
+        if (finished > 50) return "Kim Cương";
+        if (finished > 20) return "Bạch Kim";
+        return "NEWBIE";
     }
 }

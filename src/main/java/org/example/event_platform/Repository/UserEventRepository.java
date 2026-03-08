@@ -28,4 +28,15 @@ public interface UserEventRepository extends JpaRepository<UserEvent, Long> {
 
     // Tìm đúng suất diễn của 1 người trong 1 show (để Member bấm xác nhận)
     Optional<UserEvent> findByEventIdAndUserId(Long eventId, Long userId);
+    @Query("SELECT COUNT(ue) FROM UserEvent ue WHERE ue.user.tenant.id = :tenantId " +
+            "AND ue.user.id = :userId AND ue.status = 'CHECKED_OUT'")
+    long countFinishedShows(Long tenantId, Long userId);
+
+    @Query("SELECT COUNT(ue) FROM UserEvent ue WHERE ue.user.tenant.id = :tenantId " +
+            "AND ue.user.id = :userId AND (ue.status = 'ACCEPTED' OR ue.status = 'CHECKIN_CONCENTRATE')")
+    long countPendingShows(Long tenantId, Long userId);
+
+    @Query("SELECT SUM(ue.salary) FROM UserEvent ue WHERE ue.user.tenant.id = :tenantId " +
+            "AND ue.user.id = :userId AND ue.status = 'CHECKED_OUT'")
+    Double sumTotalEarnings(Long tenantId, Long userId);
 }

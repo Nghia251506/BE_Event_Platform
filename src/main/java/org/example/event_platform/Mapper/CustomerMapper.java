@@ -15,6 +15,7 @@ public interface CustomerMapper {
     // 2. Chuyển Request sang Entity để tạo mới
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "assignedTo", ignore = true)
+    @Mapping(target = "tenant", ignore = true)
     Customer toEntity(CustomerRequest request);
 
     // 3. CẬP NHẬT: Đây là hàm ông giáo đang thiếu

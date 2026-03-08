@@ -8,6 +8,7 @@ import org.example.event_platform.Entity.User;
 import org.example.event_platform.Mapper.CustomerMapper;
 import org.example.event_platform.Repository.CustomerRepository;
 import org.example.event_platform.Repository.UserRepository;
+import org.example.event_platform.util.TenantContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,77 +22,71 @@ public class CustomerService {
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final CustomerMapper customerMapper;
+    // Giả sử TenantContext của ông có hàm getCurrentTenantId()
 
-    /**
-     * TẠO MỚI: Tự động lấy User đang login để gán vào AssignedTo
-     */
     @Transactional
     public CustomerResponse createCustomer(CustomerRequest request) {
-        // 1. Lấy Username từ JWT/Security Context
-        String currentUsername = SecurityContextHolder.getContext()
-                .getAuthentication().getName();
+        Long currentTenantId = TenantContext.getCurrentShopId();
 
-        // 2. Tìm User thực thể
-        User currentUser = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new RuntimeException("Lỗi hệ thống: Không tìm thấy User đang đăng nhập!"));
-
-        // 3. Check trùng số điện thoại
-        if (customerRepository.existsByPhone(request.getPhone())) {
-            throw new RuntimeException("Số điện thoại này đã thuộc về một khách hàng khác!");
+        // 1. Check trùng SĐT trong nội bộ Tenant
+        if (customerRepository.existsByPhoneAndTenantId(request.getPhone(), currentTenantId)) {
+            throw new RuntimeException("Số điện thoại này đã tồn tại trong hệ thống của bạn!");
         }
 
-        // 4. Map & Gán người quản lý
+        // 2. Lấy User đang login
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new RuntimeException("User không tồn tại!"));
+
+        // 3. Map Entity
         Customer customer = customerMapper.toEntity(request);
-        customer.setAssignedTo(currentUser); // Tự động "đóng dấu"
+
+        // 4. Gán Tenant và Người quản lý
+        customer.setTenant(currentUser.getTenant()); // Hoặc lấy từ DB nếu TenantContext chỉ có ID
+        customer.setAssignedTo(currentUser);
 
         return customerMapper.toResponse(customerRepository.save(customer));
     }
 
-    /**
-     * SEARCH & LIST: Tích hợp phân trang và tìm kiếm theo Keyword (Tên/SĐT)
-     */
     @Transactional(readOnly = true)
     public Page<CustomerResponse> getCustomers(String keyword, Pageable pageable) {
-        return customerRepository.searchCustomers(keyword, pageable)
+        Long tenantId = TenantContext.getCurrentShopId();
+        return customerRepository.searchCustomers(tenantId, keyword, pageable)
                 .map(customerMapper::toResponse);
     }
 
-    /**
-     * GET BY ID: Lấy chi tiết khách hàng
-     */
     @Transactional(readOnly = true)
     public CustomerResponse getCustomerById(Long id) {
-        Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + id));
+        Long tenantId = TenantContext.getCurrentShopId();
+        // Phải tìm theo cả ID và TenantId để bảo mật
+        Customer customer = customerRepository.findByIdAndTenantId(id, tenantId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng!"));
         return customerMapper.toResponse(customer);
     }
 
-    /**
-     * UPDATE: Cập nhật thông tin và check trùng Phone
-     */
     @Transactional
     public CustomerResponse updateCustomer(Long id, CustomerRequest request) {
-        Customer existingCustomer = customerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Khách hàng không tồn tại để cập nhật!"));
+        Long tenantId = TenantContext.getCurrentShopId();
+        Customer existingCustomer = customerRepository.findByIdAndTenantId(id, tenantId)
+                .orElseThrow(() -> new RuntimeException("Khách hàng không tồn tại!"));
 
-        // Nếu đổi số điện thoại, phải check xem số mới có ai dùng chưa
+        // Check trùng phone (trừ chính nó ra)
         if (!existingCustomer.getPhone().equals(request.getPhone()) &&
-                customerRepository.existsByPhone(request.getPhone())) {
-            throw new RuntimeException("Số điện thoại mới đã bị trùng!");
+                customerRepository.existsByPhoneAndTenantId(request.getPhone(), tenantId)) {
+            throw new RuntimeException("Số điện thoại mới đã bị trùng trong hệ thống!");
         }
 
         customerMapper.updateEntityFromRequest(request, existingCustomer);
         return customerMapper.toResponse(customerRepository.save(existingCustomer));
     }
 
-    /**
-     * DELETE: Xóa khách hàng khỏi hệ thống
-     */
     @Transactional
     public void deleteCustomer(Long id) {
-        if (!customerRepository.existsById(id)) {
-            throw new RuntimeException("ID khách hàng không hợp lệ!");
-        }
-        customerRepository.deleteById(id);
+        Long tenantId = TenantContext.getCurrentShopId();
+        // Kiểm tra xem khách có thuộc quyền quản lý của Tenant không trước khi xóa
+        Customer customer = customerRepository.findByIdAndTenantId(id, tenantId)
+                .orElseThrow(() -> new RuntimeException("Bạn không có quyền xóa khách hàng này!"));
+
+        customerRepository.delete(customer);
     }
 }

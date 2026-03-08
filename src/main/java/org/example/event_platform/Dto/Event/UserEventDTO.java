@@ -19,6 +19,7 @@ public class UserEventDTO {
     private String fullName;
     private String position;
     private String status; // PENDING, ACCEPTED, REJECTED, FINISHED
+    private LocalTime actualConcentrateAt;
 
     private LocalTime checkinAt;
     private LocalTime checkoutAt;
